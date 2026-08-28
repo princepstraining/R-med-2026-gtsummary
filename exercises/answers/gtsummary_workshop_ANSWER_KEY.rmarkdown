@@ -1,0 +1,852 @@
+---
+title: "Clinical Tables with {gtsummary}"
+subtitle: "Instructor Answer Key — NOT FOR CIRCULATION"
+author: "Clinical Data Programming"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    number-sections: true
+    code-tools: true
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+knitr::opts_chunk$set(comment = "#>", collapse = TRUE)
+```
+
+::: callout-warning
+## Facilitator copy
+
+This file contains completed code for every exercise in the participant workbook. Keep it off the shared drive the participants have access to until after the session.
+:::
+
+# Using This Key {#sec-using}
+
+Each entry gives the completed code, a short note on **why** that answer, and — where relevant — the **wrong turn to expect**. The wrong turns are the useful part: most of them are worth letting a participant hit before you intervene.
+
+```{r}
+#| label: packages
+
+library(gtsummary)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(stringr)
+library(gt)
+library(pharmaverseadam)
+
+theme_gtsummary_compact()
+```
+
+------------------------------------------------------------------------
+
+# Warm-up {#sec-warmup}
+
+## 0.1 — First table
+
+```{r}
+#| label: key-0-1
+
+trial |>
+  tbl_summary(
+    by = trt,
+    include = c(age, grade, response)
+  )
+```
+
+**Wrong turn to expect.** Passing `include = c("age", "grade", "response")` as strings. It works, but it teaches the wrong reflex — `gtsummary` uses tidyselect throughout, and quoting will fail the moment they reach `all_continuous()`.
+
+## 0.2 — Interrogate the defaults
+
+Answers to the three questions:
+
+1.  **Median (IQR)** — the default for continuous variables.
+2.  **Non-missing within the column.** The header `N` is the group size; the percentage denominator is the count of non-missing responses.
+3.  Reported on a separate **Unknown** row and excluded from the denominator.
+
+Verification code:
+
+```{r}
+#| label: key-0-2
+
+trial |>
+  tbl_summary(
+    by = trt,
+    include = c(age, response),
+    missing = "ifany",
+    missing_text = "Missing"
+  ) |>
+  add_stat_label()
+```
+
+**Point to draw out.** Question 2 is the one that matters. Some SAPs want the denominator to be the treatment group size regardless of missingness; the default is not that. If nobody raises it, ask directly: *"if four subjects have a missing response, does the percentage change?"*
+
+------------------------------------------------------------------------
+
+# Part 1 — Demographics {#sec-demog}
+
+```{r}
+#| label: key-demog-data
+
+adsl <- pharmaverseadam::adsl |>
+  filter(SAFFL == "Y") |>
+  mutate(
+    SEX = factor(SEX, levels = c("M", "F"), labels = c("Male", "Female")),
+    AGEGR1 = factor(AGEGR1, levels = c("<65", "65-80", ">80"))
+  )
+```
+
+## 1.1 — The shell
+
+```{r}
+#| label: key-1-1
+
+adsl |>
+  tbl_summary(
+    by = TRT01A,
+    include = c(AGE, AGEGR1, SEX, RACE, ETHNIC)
+  )
+```
+
+## 1.2 — Statistics the SAP asks for
+
+```{r}
+#| label: key-1-2
+
+adsl |>
+  tbl_summary(
+    by = TRT01A,
+    include = c(AGE, AGEGR1, SEX, RACE, ETHNIC),
+    type = list(AGE ~ "continuous2"),
+    statistic = list(
+      AGE ~ c("{N_nonmiss}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+      all_categorical() ~ "{n} ({p}%)"
+    )
+  )
+```
+
+**Why `continuous2`.** The default `continuous` type renders a variable on a single line and silently keeps only the first statistic you supply. Participants who skip the `type` argument get one row and no error — that silence is the lesson.
+
+**Wrong turn to expect.** Writing the statistic as one string with the parts separated by commas instead of as a vector of four elements.
+
+## 1.3 — Decimal places
+
+```{r}
+#| label: key-1-3
+
+adsl |>
+  tbl_summary(
+    by = TRT01A,
+    include = c(AGE, AGEGR1, SEX, RACE, ETHNIC),
+    type = list(AGE ~ "continuous2"),
+    statistic = list(
+      AGE ~ c("{N_nonmiss}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = list(
+      AGE ~ list(0, c(1, 1), 1, c(0, 0)),
+      all_categorical() ~ c(0, 1)
+    )
+  )
+```
+
+**The structural point.** `digits` mirrors `statistic` element for element, but each element must supply one value **per placeholder**. `"{mean} ({sd})"` holds two placeholders, so it needs `c(1, 1)`.
+
+**Wrong turn to expect.** `AGE ~ list(0, 1, 1, 0)` — four values for six placeholders. The error message is not especially clear, so this is a good moment to show the named form used later in Part 3:
+
+```{r}
+#| label: key-1-3-alt
+
+adsl |>
+  tbl_summary(
+    by = TRT01A,
+    include = AGE,
+    type = AGE ~ "continuous2",
+    statistic = AGE ~ c("{N_nonmiss}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+    digits = AGE ~ list(mean = 1, sd = 1, median = 1, min = 0, max = 0)
+  )
+```
+
+## 1.4 — Presentation
+
+```{r}
+#| label: key-1-4
+
+tbl_demog <- adsl |>
+  tbl_summary(
+    by = TRT01A,
+    include = c(AGE, AGEGR1, SEX, RACE, ETHNIC),
+    type = list(AGE ~ "continuous2"),
+    statistic = list(
+      AGE ~ c("{N_nonmiss}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = list(
+      AGE ~ list(0, c(1, 1), 1, c(0, 0)),
+      all_categorical() ~ c(0, 1)
+    ),
+    label = list(
+      AGE    ~ "Age (years)",
+      AGEGR1 ~ "Age Group",
+      SEX    ~ "Sex",
+      RACE   ~ "Race",
+      ETHNIC ~ "Ethnicity"
+    ),
+    missing = "no"
+  ) |>
+  modify_header(
+    label = "**Characteristic**",
+    all_stat_cols() ~ "**{level}**  \n(N = {n})"
+  ) |>
+  bold_labels()
+
+tbl_demog
+```
+
+**The two placeholders.** `{level}` is the `by` group label, `{n}` is that group's size. Both are only available on `by`-derived columns, which is why they go inside `all_stat_cols()`.
+
+**Wrong turn to expect.** A single trailing space before `\n` instead of two. Markdown needs two spaces for a hard line break, so the header renders on one line and looks like the placeholder failed. If someone says "the line break isn't working," check the whitespace first.
+
+## 1.5 — Total column and footnotes
+
+```{r}
+#| label: key-1-5
+
+tbl_demog_final <- tbl_demog |>
+  add_overall(
+    last = TRUE,
+    col_label = "**Total**  \n(N = {N})"
+  ) |>
+  modify_caption(
+    "**Table 14.1.2 — Demographics and Baseline Characteristics (Safety Population)**"
+  ) |>
+  remove_footnote_header(columns = everything()) |>
+  modify_source_note(
+    "Percentages are based on the number of subjects in the safety population within each treatment group."
+  )
+
+tbl_demog_final
+```
+
+**Note the capital.** The overall column uses `{N}`, not `{n}` — it is the full population, not a `by` group.
+
+## 1.6 — Discussion
+
+1.  **Upstream, in the data step.** `gtsummary` reports the factor levels it is given. Set the complete level set when you build the analysis data frame and a zero-count category appears as `0 (0.0%)`. Injecting a missing row at the presentation layer is unreviewable and breaks the moment the data changes.
+
+2.  From the group sizes of the `by` variable at the moment `tbl_summary()` was called — a **record count of the input data frame**, not a population-flag count. It would still read 86 with three missing ages, and that is correct for a header describing the population. The `n` row would drop to 83, which is why `{N_nonmiss}` belongs in the statistic list. *Both numbers are right; they answer different questions.*
+
+3.  Push back and ask for the SAP reference. Baseline p-values in a randomised trial test a hypothesis that is true by construction, and both ICH E9 and the CONSORT guidance discourage them. If it is genuinely pre-specified, the test must be specified too — `add_p()` picks a default that may not be the one the statistician has in mind.
+
+------------------------------------------------------------------------
+
+# Part 2 — Adverse Events {#sec-ae}
+
+```{r}
+#| label: key-ae-data
+
+adae <- pharmaverseadam::adae |>
+  filter(SAFFL == "Y", TRTEMFL == "Y")
+
+adsl_safety <- adsl |>
+  select(USUBJID, TRT01A) 
+```
+
+## 2.1 — Counting subjects
+
+```{r}
+#| label: key-2-1
+
+adae |>
+  tbl_hierarchical(
+    variables = AEDECOD,
+    by = TRT01A,
+    id = USUBJID,
+    denominator = adsl_safety,
+    overall_row = TRUE,
+    label = list(..ard_hierarchical_overall.. ~ "Any Adverse Event")
+  ) |>
+  sort_hierarchical(sort = "descending") |>
+  filter_hierarchical(n > 10)
+```
+
+**The `denominator` blank is the whole exercise.** It must be `adsl_safety`, not `adae`. Using the AE dataset gives percentages out of *subjects who had an AE*, which is a different and usually wrong quantity — and it will not error.
+
+**Wrong turn to expect.** Omitting `id`. Percentages exceed 100% and someone will notice. Let them.
+
+## 2.2 — Nest PT inside SOC
+
+```{r}
+#| label: key-2-2
+
+tbl_ae <- adae |>
+  tbl_hierarchical(
+    variables = c(AEBODSYS, AEDECOD),
+    by = TRT01A,
+    id = USUBJID,
+    denominator = adsl_safety,
+    overall_row = TRUE,
+    statistic = everything() ~ "{n} ({p}%)",
+    digits = everything() ~ list(n = 0, p = 1),
+    label = list(..ard_hierarchical_overall.. ~ "Subjects with at Least One TEAE")
+  )
+
+tbl_ae
+```
+
+**The check to walk through.** Pick a SOC with several PTs. Its count should sit between the largest single PT count and the sum of all PT counts. Equal to the sum means no de-duplication happened — a subject with two different PTs in the same SOC got counted twice at SOC level.
+
+## 2.3 — Sort and filter
+
+```{r}
+#| label: key-2-3
+
+tbl_ae_sorted <- tbl_ae |>
+  sort_hierarchical(sort = "descending") |>
+  filter_hierarchical(any(p >= 0.05))
+
+tbl_ae_sorted
+```
+
+**Two things participants get wrong here.**
+
+`p >= 5` — treating `p` as a percentage. It is a proportion on 0–1. This produces an empty table, which at least fails loudly.
+
+`p >= 0.05` without `any()` — `p` is a vector with one element per treatment column. Without a reducing function the condition is ambiguous, and the behaviour is not what "in any arm" means.
+
+## 2.4 — Presentation
+
+```{r}
+#| label: key-2-4
+
+tbl_ae_final <- tbl_ae_sorted |>
+  modify_header(
+    label = "**System Organ Class**  \n  **Preferred Term**",
+    all_stat_cols() ~ "**{level}**  \n(N = {n})"
+  ) |>
+  modify_caption(
+    "**Table 14.3.1 — Treatment-Emergent Adverse Events by System Organ Class and Preferred Term (Safety Population)**"
+  ) |>
+  bold_labels() |>
+  modify_source_note(
+    paste(
+      "Subjects are counted once within each system organ class and once within each preferred term.",
+      "System organ classes and preferred terms are sorted by descending overall frequency.",
+      "Preferred terms occurring in fewer than 5% of subjects in every treatment group are not displayed.",
+      "MedDRA version 25.0."
+    )
+  )
+
+tbl_ae_final
+```
+
+**On indentation.** `tbl_hierarchical()` indents inner levels automatically. Participants who reach for an indentation function are solving a problem they do not have — the hint tells them to render first and look.
+
+## 2.5 — Extensions
+
+### (a) Serious adverse events
+
+```{r}
+#| label: key-2-5a
+
+adae |>
+  filter(AESER == "Y") |>
+  tbl_hierarchical(
+    variables = c(AEBODSYS, AEDECOD),
+    by = TRT01A,
+    id = USUBJID,
+    denominator = adsl_safety,
+    overall_row = TRUE,
+    statistic = everything() ~ "{n} ({p}%)",
+    digits = everything() ~ list(n = 0, p = 1)
+  ) |>
+  sort_hierarchical(sort = "descending") |>
+  bold_labels()
+```
+
+**Note the denominator does not change.** SAE percentages are still out of the full safety population. Filtering the numerator and leaving the denominator alone is correct here, and worth saying out loud because it looks inconsistent at first glance.
+
+### (b) Maximum severity per subject
+
+```{r}
+#| label: key-2-5b
+
+adae_maxsev <- adae |>
+  mutate(ASEV = factor(ASEV, levels = c("MILD", "MODERATE", "SEVERE"))) |>
+  group_by(USUBJID, AEBODSYS, AEDECOD) |>
+  slice_max(as.integer(ASEV), n = 1, with_ties = FALSE) |>
+  ungroup()
+
+adae_maxsev |>
+  tbl_hierarchical(
+    variables = c(AEBODSYS, AEDECOD, ASEV),
+    by = TRT01A,
+    id = USUBJID,
+    denominator = adsl_safety,
+    statistic = everything() ~ "{n} ({p}%)",
+    digits = everything() ~ list(n = 0, p = 1)
+  ) |>
+  sort_hierarchical(sort = "descending") |>
+  filter_hierarchical(any(n >= 8)) |>
+  bold_labels()
+```
+
+**The teaching point.** This is a data problem, not a table problem. `ASEV` must be an ordered factor before "maximum" means anything — on a character variable, `slice_max()` gives the alphabetically last value, which is `SEVERE` by luck and `MODERATE` over `MILD` also by luck. It happens to work on these three labels and would break on `Grade 1` / `Grade 2` / `Grade 3`. Worth demonstrating if time allows.
+
+### (c) Subjects and events side by side
+
+```{r}
+#| label: key-2-5c
+
+tbl_subj <- adae |>
+  tbl_hierarchical(
+    variables = AEBODSYS,
+    by = TRT01A,
+    id = USUBJID,
+    denominator = adsl_safety,
+    statistic = everything() ~ "{n} ({p}%)",
+    digits = everything() ~ list(n = 0, p = 1)
+  )
+
+tbl_evt <- adae |>
+  tbl_hierarchical_count(
+    variables = AEBODSYS,
+    by = TRT01A
+  )
+
+tbl_merge(
+  list(tbl_subj, tbl_evt),
+  tab_spanner = c("**Subjects n (%)**", "**Events n**")
+)
+```
+
+**Why a different function.** Event counts do not de-duplicate, so `tbl_hierarchical()` with its `id` argument is the wrong tool. `tbl_hierarchical_count()` counts records and takes no `id`.
+
+------------------------------------------------------------------------
+
+# Part 3 — Laboratory Results by Visit {#sec-lab}
+
+```{r}
+#| label: key-lab-data
+
+adlb <- pharmaverseadam::adlb |>
+  filter(SAFFL == "Y", PARAMCD == "ALT") |>
+  mutate(
+    TRTA = factor(
+      TRTA,
+      levels = c("Placebo", "Xanomeline Low Dose", "Xanomeline High Dose")
+    )
+  )
+```
+
+## 3.1 — One visit, value only
+
+```{r}
+#| label: key-3-1
+
+visit <- "Week 12"
+
+df_visit <- adlb |> filter(AVISIT == visit)
+
+tbl_aval <- df_visit |>
+  tbl_summary(
+    by = TRTA,
+    include = AVAL,
+    type = AVAL ~ "continuous2",
+    statistic = AVAL ~ c("{N_obs}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+    digits = AVAL ~ list(mean = 2, sd = 2, median = 2, min = 2, max = 2),
+    label = list(AVAL ~ visit),
+    missing = "no"
+  )
+
+tbl_aval
+```
+
+**`label = list(AVAL ~ visit)` is load-bearing.** It is doing two jobs: showing the visit name as the row group, and — critically — giving this table a row label identical to the one the `CHG` table will have, so `tbl_merge()` can pair the rows in 3.3. If a participant leaves it as the default, everything works until 3.3, where the merge produces twice as many rows as expected. That failure is worth letting them reach.
+
+**On `{N_obs}`.** Kept here deliberately so Exercise 3.8(b) has something to find. See that entry for the resolution.
+
+## 3.2 — The same visit, change from baseline
+
+```{r}
+#| label: key-3-2
+
+tbl_chg <- df_visit |>
+  tbl_summary(
+    by = TRTA,
+    include = CHG,
+    type = CHG ~ "continuous2",
+    statistic = CHG ~ c("{N_obs}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+    digits = CHG ~ list(mean = 2, sd = 2, median = 2, min = 2, max = 2),
+    label = list(CHG ~ visit),
+    missing = "no"
+  )
+
+tbl_chg
+```
+
+**Same `label`, different variable.** That asymmetry is the point — the tables differ in content and agree in structure.
+
+**When they set `visit <- "Baseline"`:** the change column populates with zeros or with values, depending on how the source data was built. Either way it is meaningless and must be suppressed. That is 3.6.
+
+## 3.3 — Merge the pair
+
+```{r}
+#| label: key-3-3
+
+tbl2 <- tbl_merge(
+  list(tbl_aval, tbl_chg),
+  merge_vars = c("var_type", "var_label", "row_type", "label"),
+  tab_spanner = c("**Value at Visit**", "**Change from Baseline**")
+)
+
+tbl2$table_body |> names()
+```
+
+**What `merge_vars` does.** It names the columns used to decide which row of table 1 pairs with which row of table 2. All four together form the row's identity: variable type, variable label, row type (label row versus statistic row), and the row's own text.
+
+**Column naming.** `stat_{column}_{table}` — first number is the treatment position, second is which input table. So `stat_2_1` is Low Dose, value; `stat_2_2` is Low Dose, change. Make sure everyone can state this before moving on; 3.4 is unguessable otherwise.
+
+## 3.4 — Fix the column order
+
+```{r}
+#| label: key-3-4
+
+new_order <- c("label", "stat_1_1", "stat_1_2", "stat_2_1", "stat_2_2", "stat_3_1", "stat_3_2")
+
+tbl2$table_body <- tbl2$table_body |>
+  dplyr::relocate(dplyr::all_of(new_order))
+```
+
+**Why `relocate()` and not a `modify_*()` call.** There is no supported function for reordering statistic columns. This is a genuine gap, and the direct edit is the accepted workaround rather than a hack — but it is outside the API, so the version pinning point in 3.10(1) is real and not hypothetical.
+
+**`relocate()` moves the named columns to the front and leaves the rest in place.** The internal bookkeeping columns (`variable`, `var_type`, `row_type`, and so on) stay where they are, which is what you want.
+
+## 3.5 — Headers and spanning headers
+
+```{r}
+#| label: key-3-5
+
+tbl3 <- tbl2 |>
+  modify_header(
+    stat_1_1 ~ "**Value at Visit**", stat_1_2 ~ "**Change from Baseline**",
+    stat_2_1 ~ "**Value at Visit**", stat_2_2 ~ "**Change from Baseline**",
+    stat_3_1 ~ "**Value at Visit**", stat_3_2 ~ "**Change from Baseline**"
+  ) |>
+  modify_spanning_header(
+    c(stat_1_1, stat_1_2) ~ tbl2$table_styling$header[tbl2$table_styling$header$column == "stat_1_1", ]$label,
+    c(stat_2_1, stat_2_2) ~ tbl2$table_styling$header[tbl2$table_styling$header$column == "stat_2_1", ]$label,
+    c(stat_3_1, stat_3_2) ~ tbl2$table_styling$header[tbl2$table_styling$header$column == "stat_3_1", ]$label
+  )
+
+tbl3
+```
+
+**The hardest step in the workbook. Walk it slowly.**
+
+After the merge, the treatment name sits in the *column header* and the measure name sits in the *spanner*. The shell wants the opposite. So:
+
+- Overwrite the six column headers with the measure names — straightforward.
+- For the spanners, retrieve the treatment name that was in the header. It lives in `table_styling$header`, a data frame with one row per column and the header text in `label`.
+
+**The trap.** The expression reads from `tbl2` while writing into `tbl3`. If a participant writes `tbl3$table_styling$...` inside the pipe, they get the value they just overwrote — every spanner reads "Value at Visit". Nothing errors. This is the single most likely place for someone to get a plausible-looking wrong table, so check outputs at this step rather than waiting for 3.7.
+
+**Why not hard-code the arm names.** Ask the room. The answer is that the function must survive a protocol amendment, a different study, and a blind-break — and a hard-coded `"Placebo"` survives none of them.
+
+## 3.6 — Blank the baseline change cells
+
+```{r}
+#| label: key-3-6
+
+tbl3$table_body <- tbl3$table_body |>
+  mutate(across(c(stat_1_2, stat_2_2, stat_3_2), ~ ifelse(var_label == "Baseline", " ", .x)))
+```
+
+**Why `var_label` and not `AVISIT`.** By this point the data frame is a table body, not the analysis dataset. The visit name arrived here because 3.1 set it as the variable label — so it is in `var_label`.
+
+**`" "` versus `""`.** A single space holds the row height in most RTF backends; an empty string can collapse it. Worth testing in whichever backend the team actually delivers in rather than trusting either.
+
+## 3.7 — Wrap it in a function
+
+```{r}
+#| label: key-3-7-fun
+
+build_visit_tbl <- function(visit) {
+
+  df_visit <- adlb |> filter(AVISIT == visit)
+
+  tbl_aval <- df_visit |>
+    tbl_summary(
+      by = TRTA,
+      include = AVAL,
+      type = AVAL ~ "continuous2",
+      statistic = AVAL ~ c("{N_obs}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+      digits = AVAL ~ list(mean = 2, sd = 2, median = 2, min = 2, max = 2),
+      label = list(AVAL ~ visit),
+      missing = "no"
+    )
+
+  tbl_chg <- df_visit |>
+    tbl_summary(
+      by = TRTA,
+      include = CHG,
+      type = CHG ~ "continuous2",
+      statistic = CHG ~ c("{N_obs}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+      digits = CHG ~ list(mean = 2, sd = 2, median = 2, min = 2, max = 2),
+      label = list(CHG ~ visit),
+      missing = "no"
+    )
+
+  tbl2 <- tbl_merge(
+    list(tbl_aval, tbl_chg),
+    merge_vars = c("var_type", "var_label", "row_type", "label"),
+    tab_spanner = c("**Value at Visit**", "**Change from Baseline**")
+  )
+
+  new_order <- c("label", "stat_1_1", "stat_1_2", "stat_2_1", "stat_2_2", "stat_3_1", "stat_3_2")
+
+  tbl2$table_body <- tbl2$table_body |> dplyr::relocate(dplyr::all_of(new_order))
+
+  tbl3 <- tbl2 |>
+    modify_header(
+      stat_1_1 ~ "**Value at Visit**", stat_1_2 ~ "**Change from Baseline**",
+      stat_2_1 ~ "**Value at Visit**", stat_2_2 ~ "**Change from Baseline**",
+      stat_3_1 ~ "**Value at Visit**", stat_3_2 ~ "**Change from Baseline**"
+    ) |>
+    modify_spanning_header(
+      c(stat_1_1, stat_1_2) ~ tbl2$table_styling$header[tbl2$table_styling$header$column == "stat_1_1", ]$label,
+      c(stat_2_1, stat_2_2) ~ tbl2$table_styling$header[tbl2$table_styling$header$column == "stat_2_1", ]$label,
+      c(stat_3_1, stat_3_2) ~ tbl2$table_styling$header[tbl2$table_styling$header$column == "stat_3_1", ]$label
+    )
+
+  tbl3$table_body <- tbl3$table_body |>
+    mutate(across(c(stat_1_2, stat_2_2, stat_3_2), ~ ifelse(var_label == "Baseline", " ", .x)))
+
+  return(tbl3)
+}
+```
+
+**The one hard-coded value that becomes the argument** is the visit name, appearing in the `filter()` and in both `label` arguments — three places, though the hint says two. If someone points that out, they have read the code properly.
+
+```{r}
+#| label: key-3-7-visits
+
+visits <- adlb |>
+  filter(
+    !str_detect(AVISIT, "Unscheduled"),
+    !str_detect(AVISIT, "Removal"),
+    !str_detect(AVISIT, "POST-BASELINE")
+  ) |>
+  distinct(AVISIT) |>
+  pull()
+
+visits
+```
+
+```{r}
+#| label: key-3-7-map
+
+visit_tbls <- map(visits[1:4], build_visit_tbl)
+
+tbl_final <- tbl_stack(visit_tbls)
+
+tbl_final
+```
+
+**Debugging demonstration.** If nobody's function breaks, break one deliberately and show the workflow:
+
+``` r
+debugonce(build_visit_tbl)
+visit_tbls <- map(visits[1:4], build_visit_tbl)
+```
+
+Then `n` to step, `c` to continue, and type `tbl2$table_body` at the point of failure. Two minutes spent here is worth more than any table-building technique in the session — most of the room will be debugging with `print()` and will not know this exists.
+
+**Failure mode to anticipate.** `map()` over a visit where one treatment arm has no records produces fewer than six statistic columns, and the hard-coded `new_order` fails with an `all_of()` error. That is `all_of()` doing its job — a strict selector failing loudly beats `any_of()` silently producing a misaligned table. Say so if it comes up.
+
+## 3.8 — Two things that are not quite right
+
+### (a) Visit ordering
+
+`distinct(AVISIT) |> pull()` returns rows in data order, which is not guaranteed to be protocol order. `AVISITN` is the numeric visit ordering variable and exists for exactly this purpose.
+
+```{r}
+#| label: key-3-8a
+
+visits <- adlb |>
+  filter(
+    !str_detect(AVISIT, "Unscheduled"),
+    !str_detect(AVISIT, "Removal"),
+    !str_detect(AVISIT, "POST-BASELINE")
+  ) |>
+  distinct(AVISITN, AVISIT) |>
+  arrange(AVISITN) |>
+  pull(AVISIT)
+
+visits
+```
+
+**Why this matters beyond tidiness.** It happens to come out right on this dataset, which is the problem — it will keep coming out right until a data transfer arrives sorted differently, and then a table goes out with Week 24 above Week 12 and nothing errors. Deterministic ordering is not a style preference.
+
+### (b) `{N_obs}` versus `{N_nonmiss}`
+
+- `{N_obs}` — every record in the group, missing results included
+- `{N_nonmiss}` — records with a non-missing value
+
+`missing = "no"` suppresses the *display* of a missing row. It does not change what `{N_obs}` counts. So a subject with a Week 12 record and a missing ALT result is counted in `n` but contributes to no other statistic — `n` will not reconcile against the mean's denominator.
+
+**Recommended fix, subject to the SAP:**
+
+``` r
+statistic = AVAL ~ c("{N_nonmiss}", "{mean} ({sd})", "{median}", "{min} - {max}")
+```
+
+**How to run this discussion.** Ask what "n" means in the shell footnote. Usually it is "number of subjects with a non-missing assessment at the visit," which is `{N_nonmiss}`. Then point at the circulated shell: at Week 12 the value `n` and the change `n` are both 67 for Placebo, but they need not be — a subject missing a baseline has a value at Week 12 and no change. If the two columns can differ, the statistic must be sensitive to missingness, which settles it.
+
+## 3.9 — Finish it
+
+```{r}
+#| label: key-3-9
+
+param_label <- unique(adlb$PARAM)[1]
+
+tbl_final <- tbl_final |>
+  modify_caption(
+    paste0("**Table 14.4.1 — Summary of ", param_label,
+           " and Change from Baseline by Visit (Safety Population)**")
+  ) |>
+  modify_source_note(
+    paste(
+      "Baseline is the last non-missing assessment prior to the first dose of study drug.",
+      "Change from baseline is the post-baseline value minus the baseline value.",
+      "n is the number of subjects with a non-missing assessment at the visit."
+    )
+  )
+
+tbl_final
+```
+
+## 3.10 — Discussion
+
+1.  **What makes the direct `table_body` edits acceptable.** A pinned environment — `renv.lock` with an exact `gtsummary` version, restored rather than snapshotted on the target machine. A comment at each edit stating why no supported function exists. And a note in the program header flagging the dependency, so whoever handles the next version upgrade knows to re-test these two lines specifically. The risk is not that the edit is wrong today; it is that an upgrade changes the internal structure and the failure is silent.
+
+2.  **Factoring out the duplication.** An inner helper taking the variable name would remove the near-duplicate calls:
+
+    ``` r
+    summarise_var <- function(df, var, visit_label) {
+      df |> tbl_summary(by = TRTA, include = all_of(var), ...)
+    }
+    ```
+
+    Whether this is an improvement is a real question, not a rhetorical one. It removes a copy-paste divergence risk — if someone changes `digits` in one call and not the other, the table is quietly inconsistent. Against that, it adds indirection to code that a QC programmer has to read and verify. For two calls, reasonable people differ. For five, factor it out.
+
+3.  **Where an independent QC will diverge.** Rounding at the third decimal, since the mean of the rounded values is not the rounded mean. Whether `n` counts observed or non-missing records — 3.8(b) again. The visit list and its ordering. Whether Baseline change is blank, zero, or absent. Every one of these belongs in the specification as an explicit statement, because each is a defensible choice that two competent programmers will make differently.
+
+------------------------------------------------------------------------
+
+# Part 4 — Export {#sec-export}
+
+## 4.1 — Three backends
+
+```{r}
+#| label: key-4-1
+#| eval: false
+
+tbl_demog_final |> as_gt()          # HTML and PDF; supports the widest styling
+tbl_demog_final |> as_flex_table()  # Word and PowerPoint via officer
+tbl_demog_final |> as_hux_table()   # the bridge to RTF via pharmaRTF
+```
+
+**What to draw out.** `gt` renders the markdown in headers correctly; the other two may not, and bold markers can appear literally as asterisks. Have someone render all three and compare the header row — it is the fastest way to make the point that the backend is not a neutral choice.
+
+## 4.2 — RTF
+
+```{r}
+#| label: key-4-2
+#| eval: false
+
+library(huxtable)
+library(pharmaRTF)
+
+ht <- tbl_demog_final |>
+  as_hux_table()
+
+huxtable::header_rows(ht)[1] <- TRUE
+
+doc <- rtf_doc(ht) |>
+  add_titles(
+    hf_line("Protocol ABC-123", "Page \\pagenumber of \\pagefield",
+            align = "split", bold = TRUE),
+    hf_line("Table 14.1.2", align = "center", bold = TRUE),
+    hf_line("Demographic and Baseline Characteristics", align = "center"),
+    hf_line("Safety Population", align = "center")
+  ) |>
+  add_footnotes(
+    hf_line("Percentages are based on the number of subjects in the safety population within each treatment group.",
+            align = "left"),
+    hf_line("Source: adsl.sas7bdat", align = "left"),
+    hf_line("Program: t_14_01_02_demog.R", "Generated: \\date \\time", align = "split")
+  ) |>
+  set_font_size(9) |>
+  set_orientation("landscape")
+
+write_rtf(doc, file = "t_14_01_02_demog.rtf")
+```
+
+**Four things participants will hit.**
+
+- `align = "split"` needs **two** strings — it pushes them to opposite margins. One string gives nothing to split.
+- Header rows do not repeat on page 2 unless huxtable has them marked. Set `header_rows()` explicitly.
+- Markdown bold from `modify_header()` may print as literal asterisks. Check the header row on a rendered page.
+- Default font size overflows a landscape page with four columns. 8 or 9 is the working range.
+
+## 4.3 — Discussion
+
+- **`renv`** — a lockfile pinning `gtsummary` and its dependencies, restored on the target machine. Given the direct `table_body` edits in Part 3, this is a hard requirement rather than good practice.
+- **Version stability** — `gtsummary` 2.0 renamed and removed functions. Programs written against 1.x do not run unchanged. Upgrades need a re-validation cycle, not a `install.packages()`.
+- **Independent QC** — a separate program reaching the same numbers by a different route, compared programmatically rather than by eye.
+- **Deterministic ordering** — never rely on the order rows happen to arrive in. See 3.8(a).
+- **Traceability** — source dataset, its version, and the program path in the output footer, not only in the program header.
+
+------------------------------------------------------------------------
+
+# Facilitator Notes {#sec-facilitator}
+
+## Where time goes
+
+| Section | Expect    | Watch for                                      |
+|---------|-----------|------------------------------------------------|
+| Warm-up | 15 min    | Runs fast; do not let it run long              |
+| Part 1  | 45 min    | 1.3 `digits` structure is the first real stall |
+| Part 2  | 45 min    | 2.1 `denominator`; 2.3 the scale of `p`        |
+| Part 3  | 75–90 min | 3.5 will consume a third of this on its own    |
+| Part 4  | 20 min    | Mostly demonstration                           |
+
+Part 3 is roughly half the session. If you are running behind, cut Exercise 2.5 entirely — it is explicitly optional — rather than compressing 3.5.
+
+## The four moments that matter
+
+**2.1, `denominator`.** Wrong answers do not error. Someone will build a plausible table with wrong percentages. Catch it by asking what the denominator represents, not by checking their code.
+
+**3.1, the `label` blank.** Feels arbitrary when they write it and pays off two exercises later. If several people skip it, let the 3.3 merge fail — the failure teaches the point better than the hint does.
+
+**3.5, `tbl2` versus `tbl3`.** The highest-risk step in the workbook, because the wrong version renders without complaint and looks nearly right. Check outputs at this step rather than waiting.
+
+**3.8(b), `{N_obs}`.** The only defect in the workbook that would survive to a CSR. Give it the time it deserves.
+
+## Before the session
+
+- Confirm `gtsummary` is 2.0 or later on every machine. Nothing in Parts 2 or 3 works on 1.x.
+- Confirm `pharmaverseadam` installs, or prepare a substitute ADSL / ADAE / ADLB.
+- Run every chunk in this key end to end and correct any check-your-work values in the participant workbook that do not match your output.

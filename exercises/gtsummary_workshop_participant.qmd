@@ -1,0 +1,699 @@
+---
+title: "Clinical Tables with {gtsummary}"
+subtitle: "Hands-on Workshop — Participant Workbook"
+author: "Clinical Data Programming"
+date: today
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-location: left
+    number-sections: true
+    code-tools: true
+    theme: cosmo
+    embed-resources: true
+execute:
+  warning: false
+  message: false
+  eval: false
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+#| eval: true
+
+knitr::opts_chunk$set(comment = "#>", collapse = TRUE)
+```
+
+# How This Workbook Works {#sec-how}
+
+Every exercise gives you three things and withholds a fourth.
+
+| You get                                              | You don't get      |
+|------------------------------------|------------------------------------|
+| A **task** stating what the table must show          | Working code       |
+| A **skeleton** with blanks marked `____`             | The completed call |
+| **Check your work** — facts your output must satisfy | A solution chunk   |
+
+Hints are collapsed. Open the first one only after you have tried something; open the second only if the first did not unstick you. There is no third hint on purpose.
+
+::: callout-important
+## Fill in the blanks, then remove `#| eval: false`
+
+Code chunks in this workbook are set not to run, so the document renders even with blanks in it. When you have completed a chunk, delete its `#| eval: false` line and run it with `Ctrl/Cmd + Enter`.
+:::
+
+## Environment
+
+Run this first. If anything fails, sort it out before moving on.
+
+```{r}
+#| label: packages
+#| eval: true
+
+library(gtsummary)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(stringr)
+library(gt)
+library(pharmaverseadam)
+
+packageVersion("gtsummary")   # must be 2.0.0 or later
+```
+
+::: callout-warning
+## If `pharmaverseadam` will not install
+
+Substitute your own ADSL / ADAE / ADLB. Every exercise uses standard CDISC variable names, so the only change needed is the treatment variable if yours differs.
+:::
+
+```{r}
+#| label: theme
+#| eval: true
+
+theme_gtsummary_compact()
+```
+
+------------------------------------------------------------------------
+------------------------------------------------------------------------
+
+# Part 1 — Demographics and Baseline Characteristics {#sec-demog}
+
+## Prepare the data
+
+Run this as given.
+
+```{r}
+#| label: demog-data
+#| eval: true
+
+adsl <- pharmaverseadam::adsl |>
+  filter(SAFFL == "Y") |>
+  mutate(
+    TRT01A = factor(
+      TRT01A,
+      levels = c("Placebo", "Xanomeline Low Dose", "Xanomeline High Dose")
+    ),
+    SEX = factor(SEX, levels = c("M", "F"), labels = c("Male", "Female")),
+    AGEGR1 = factor(AGEGR1, levels = c("<65", "65-80", ">80"))
+  )
+
+count(adsl, TRT01A)
+```
+
+## Exercise 1.1 — The shell
+
+**Task.** Treatment across the columns. Rows: `AGE`, `AGEGR1`, `SEX`, `RACE`, `ETHNIC`.
+
+```{r}
+#| label: ex-1-1
+#| eval: false
+
+adsl |>
+  tbl_summary(
+    by = ____,
+    include = c(____)
+  )
+```
+
+## Exercise 1.2 — Statistics the SAP asks for
+
+**Task.** Report `AGE` on four separate lines — n, Mean (SD), Median, Min – Max — and categorical variables as n (%).
+
+```{r}
+#| label: ex-1-2
+#| eval: false
+
+adsl |>
+  tbl_summary(
+    by = TRT01A,
+    include = c(AGE, AGEGR1, SEX, RACE, ETHNIC),
+    type = list(AGE ~ "____"),
+    statistic = list(
+      AGE ~ c("____", "____", "____", "____"),
+      all_categorical() ~ "____"
+    )
+  )
+```
+
+
+## Exercise 1.3 — Decimal places
+
+**Task.** n as integer, mean and SD to one decimal, median to one decimal, min and max as integers. Categorical percentages to one decimal.
+
+```{r}
+#| label: ex-1-3
+#| eval: false
+
+adsl |>
+  tbl_summary(
+    by = TRT01A,
+    include = c(AGE, AGEGR1, SEX, RACE, ETHNIC),
+    type = list(AGE ~ "continuous2"),
+    statistic = list(
+      AGE ~ c("{N_nonmiss}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = list(
+      AGE ~ list(____, ____, ____, ____),
+      all_categorical() ~ c(____, ____)
+    )
+  )
+```
+
+## Exercise 1.4 — Presentation
+
+**Task.**
+
+1.  Row labels: "Age (years)", "Age Group", "Sex", "Race", "Ethnicity"
+2.  First column header: "Characteristic"
+3.  Treatment headers showing the arm name, then `(N = xx)` on a second line
+4.  Variable labels in bold
+5.  Suppress the missing rows entirely
+
+Save the result as `tbl_demog` — later exercises use it.
+
+```{r}
+#| label: ex-1-4
+#| eval: false
+
+tbl_demog <- adsl |>
+  tbl_summary(
+    by = TRT01A,
+    include = c(AGE, AGEGR1, SEX, RACE, ETHNIC),
+    type = list(AGE ~ "continuous2"),
+    statistic = list(
+      AGE ~ c("{N_nonmiss}", "{mean} ({sd})", "{median}", "{min} - {max}"),
+      all_categorical() ~ "{n} ({p}%)"
+    ),
+    digits = list(
+      AGE ~ list(0, c(1, 1), 1, c(0, 0)),
+      all_categorical() ~ c(0, 1)
+    ),
+    label = list(
+      ____ ~ "____",
+      # ... one line per variable
+    ),
+    missing = "____"
+  ) |>
+  modify_header(
+    label = "**____**",
+    all_stat_cols() ~ "**____**  \n(N = ____)"
+  ) |>
+  ____()
+
+tbl_demog
+```
+
+
+## Exercise 1.5 — Total column and footnotes
+
+**Task.** Add a Total column on the **right-hand** side, give the table a caption naming it Table 14.1.2, remove the automatic footnote, and add your own explaining the percentage denominator.
+
+```{r}
+#| label: ex-1-5
+#| eval: false
+
+tbl_demog_final <- tbl_demog |>
+  add_overall(
+    last = ____,
+    col_label = "____"
+  ) |>
+  modify_caption("____") |>
+  ____(columns = everything()) |>
+  modify_source_note("____")
+
+tbl_demog_final
+```
+
+------------------------------------------------------------------------
+
+# Part 2 — Adverse Events by SOC and Preferred Term {#sec-ae}
+
+## Prepare the data
+
+Run this as given.
+
+```{r}
+#| label: ae-data
+#| eval: true
+
+adae <- pharmaverseadam::adae |>
+  filter(SAFFL == "Y", TRTEMFL == "Y") |>
+  mutate(
+    TRTA = factor(
+      TRTA,
+      levels = c("Placebo", "Xanomeline Low Dose", "Xanomeline High Dose")
+    )
+  )
+
+adsl_safety <- adsl |>
+  select(USUBJID, TRT01A) |>
+  rename(TRTA = TRT01A)
+
+adae |>
+  summarise(
+    n_records  = n(),
+    n_subjects = n_distinct(USUBJID),
+    n_soc      = n_distinct(AEBODSYS),
+    n_pt       = n_distinct(AEDECOD)
+  )
+```
+
+## Exercise 2.1 — Counting subjects
+
+**Task.** A flat table of preferred terms — no SOC nesting yet — showing n (%) of subjects by arm, restricted to terms occurring in more than 10 subjects overall, sorted most frequent first. Include a top row counting subjects with any TEAE.
+
+```{r}
+#| label: ex-2-1
+#| eval: false
+
+adae |>
+  tbl_hierarchical(
+    variables = ____,
+    by = ____,
+    id = ____,
+    denominator = ____,
+    overall_row = ____
+  ) |>
+  sort_hierarchical(sort = "____") 
+```
+
+
+## Exercise 2.2 — Nest PT inside SOC
+
+**Task.** Same table, now with preferred terms nested under system organ class. SOC rows count subjects with any event in that SOC; PT rows count subjects with that term. Statistics as n (%) with percentages to one decimal.
+
+Save as `tbl_ae`.
+
+```{r}
+#| label: ex-2-2
+#| eval: false
+
+tbl_ae <- adae |>
+  tbl_hierarchical(
+    variables = c(____, ____),
+    by = TRTA,
+    id = USUBJID,
+    denominator = adsl_safety,
+    overall_row = TRUE,
+    statistic = everything() ~ "____",
+    digits = everything() ~ list(n = ____, p = ____)
+  )
+
+tbl_ae
+```
+
+
+## Exercise 2.3 — Sort and filter
+
+**Task.** Apply the two rules nearly every AE shell requires:
+
+1.  SOCs sorted by descending overall frequency, PTs sorted by descending frequency within their SOC
+2.  Only preferred terms occurring in at least 5% of subjects in **any** treatment arm
+
+```{r}
+#| label: ex-2-3
+#| eval: false
+
+tbl_ae_sorted <- tbl_ae |>
+  sort_hierarchical(____) |>
+  filter_hierarchical(____)
+
+tbl_ae_sorted
+```
+
+
+## Exercise 2.4 — Presentation
+
+**Task.** Headers with arm and N. First column header showing SOC and PT on two lines. Caption as Table 14.3.1. SOC rows bold. A footnote covering the counting rule, the sort order, the 5% cut-off, and the MedDRA version.
+
+```{r}
+#| label: ex-2-4
+#| eval: false
+
+tbl_ae_final <- tbl_ae_sorted |>
+  modify_header(
+    label = "____",
+    all_stat_cols() ~ "____"
+  ) |>
+  modify_caption("____") |>
+  ____() |>
+  modify_source_note("____")
+
+tbl_ae_final
+```
+
+## Exercise 2.5 — Extension
+
+Pick one. These are deliberately less scaffolded.
+
+**(a)** The same table restricted to serious adverse events.
+
+**(b)** An AE table by **maximum severity per subject** — each subject counted once per preferred term, at their worst grade across all episodes of that term.
+
+**(c)** A table showing subject counts and event counts side by side.
+
+```{r}
+#| label: ex-2-5
+#| eval: false
+
+# Your code here
+```
+
+------------------------------------------------------------------------
+
+# Part 3 — Laboratory Results by Visit {#sec-lab}
+
+The target is the shell circulated before the session: visits as row groups, treatment arms spanning the columns, and **Value at Visit** beside **Change from Baseline** within each arm.
+
+## The strategy
+
+There is more than one way to reach this layout. The one you will build here goes:
+
+1.  Summarise `AVAL` for a single visit → one table
+2.  Summarise `CHG` for the same visit → a second table
+3.  `tbl_merge()` the pair → six statistic columns, in the wrong order
+4.  Repair the column order, the headers, and the spanning headers
+5.  Blank the change cells at Baseline
+6.  Wrap all of that in a function, `map()` it over the visit list, and `tbl_stack()` the results
+
+::: callout-note
+## Why this route
+
+Steps 1 to 5 operate on **one visit at a time**. That means you can look at a single small table, see exactly what is wrong with it, and fix it — before the function ever runs over the full visit list. Approaches that build all visits in one call are shorter to write and considerably harder to debug when a column lands in the wrong place.
+
+It also means the function you end up with is testable. That matters more than elegance.
+:::
+
+## Prepare the data
+
+Run this as given.
+
+```{r}
+#| label: lab-data
+#| eval: true
+
+adlb <- pharmaverseadam::adlb |>
+  filter(SAFFL == "Y", PARAMCD == "ALT") |>
+  mutate(
+    TRTA = factor(
+      TRTA,
+      levels = c("Placebo", "Xanomeline Low Dose", "Xanomeline High Dose")
+    )
+  )
+
+adlb |>
+  distinct(AVISITN, AVISIT) |>
+  arrange(AVISITN)
+```
+
+## Exercise 3.1 — One visit, value only
+
+**Task.** Summarise `AVAL` at Week 12 by treatment arm: n, Mean (SD), Median, Min – Max, all to two decimals. Label the variable row with the visit name rather than "AVAL".
+
+```{r}
+#| label: ex-3-1
+#| eval: false
+
+visit <- "Week 12"
+
+df_visit <- adlb |> filter(AVISIT == ____)
+
+tbl_aval <- df_visit |>
+  tbl_summary(
+    by = ____,
+    include = ____,
+    type = AVAL ~ "____",
+    statistic = AVAL ~ c("____", "____", "____", "____"),
+    digits = AVAL ~ list(mean = ____, sd = ____, median = ____, min = ____, max = ____),
+    label = list(AVAL ~ ____),
+    missing = "____"
+  )
+
+tbl_aval
+```
+
+
+## Exercise 3.2 — The same visit, change from baseline
+
+**Task.** Repeat for `CHG`, with the same statistics, the same digits, and the same label.
+
+```{r}
+#| label: ex-3-2
+#| eval: false
+
+tbl_chg <- df_visit |>
+  tbl_summary(
+    # your call from 3.1, for CHG
+  )
+
+tbl_chg
+```
+
+## Exercise 3.3 — Merge the pair
+
+**Task.** Join the two tables side by side, with "Value at Visit" and "Change from Baseline" as spanning headers.
+
+```{r}
+#| label: ex-3-3
+#| eval: false
+
+tbl2 <- tbl_merge(
+  list(____, ____),
+  merge_vars = c("var_type", "var_label", "row_type", "label"),
+  tab_spanner = c("____", "____")
+)
+
+tbl2
+
+# Look at what you got
+tbl2$table_body |> names()
+```
+
+## Exercise 3.4 — Fix the column order
+
+**Task.** The shell wants value and change **adjacent within each arm**. Reorder the columns of `table_body` to interleave them.
+
+```{r}
+#| label: ex-3-4
+#| eval: false
+
+new_order <- c("label", "____", "____", "____", "____", "____", "____")
+
+tbl2$table_body <- tbl2$table_body |>
+  dplyr::relocate(dplyr::all_of(new_order))
+
+tbl2
+```
+
+
+## Exercise 3.5 — Headers and spanning headers
+
+**Task.** The shell puts the **treatment arm** on top and **value / change** beneath it. You currently have the reverse. Swap them.
+
+```{r}
+#| label: ex-3-5
+#| eval: false
+
+tbl3 <- tbl2 |>
+  modify_header(
+    stat_1_1 ~ "____", stat_1_2 ~ "____",
+    stat_2_1 ~ "____", stat_2_2 ~ "____",
+    stat_3_1 ~ "____", stat_3_2 ~ "____"
+  ) |>
+  modify_spanning_header(
+    c(stat_1_1, stat_1_2) ~ ____,
+    c(stat_2_1, stat_2_2) ~ ____,
+    c(stat_3_1, stat_3_2) ~ ____
+  )
+
+tbl3
+```
+
+
+## Exercise 3.6 — Blank the baseline change cells
+
+**Task.** Change from baseline is undefined at Baseline. Replace those cells with a blank.
+
+```{r}
+#| label: ex-3-6
+#| eval: false
+
+tbl3$table_body <- tbl3$table_body |>
+  mutate(across(c(____, ____, ____), ~ ifelse(____ == "Baseline", " ", .x)))
+
+tbl3
+```
+
+## Exercise 3.7 — Wrap it in a function
+
+**Task.** Everything from 3.1 to 3.6 handles one visit. Turn it into a function taking a single argument, then apply it across visits and stack the results.
+
+```{r}
+#| label: ex-3-7-fun
+#| eval: false
+
+build_visit_tbl <- function(____) {
+
+  df_visit <- adlb |> filter(AVISIT == ____)
+
+  tbl_aval <- df_visit |> tbl_summary( ____ )
+
+  tbl_chg  <- df_visit |> tbl_summary( ____ )
+
+  tbl2 <- tbl_merge( ____ )
+
+  new_order <- c( ____ )
+  tbl2$table_body <- tbl2$table_body |> dplyr::relocate(dplyr::all_of(new_order))
+
+  tbl3 <- tbl2 |>
+    modify_header( ____ ) |>
+    modify_spanning_header( ____ )
+
+  tbl3$table_body <- tbl3$table_body |> mutate( ____ )
+
+  return(____)
+}
+```
+
+**Task, continued.** Build the visit list. Exclude unscheduled visits, early-removal visits, and any generic post-baseline label.
+
+```{r}
+#| label: ex-3-7-visits
+#| eval: false
+
+visits <- adlb |>
+  filter(
+    !str_detect(AVISIT, "____"),
+    !str_detect(AVISIT, "____"),
+    !str_detect(AVISIT, "____")
+  ) |>
+  distinct(AVISIT) |>
+  pull()
+
+visits
+```
+
+**Task, continued.** Run it over the first four visits and stack.
+
+```{r}
+#| label: ex-3-7-map
+#| eval: false
+
+visit_tbls <- map(visits[1:4], ____)
+
+tbl_final <- tbl_stack(____)
+
+tbl_final
+```
+
+
+# Part 4 — Getting Tables Out of R {#sec-export}
+
+A table that only exists in an HTML preview is not a deliverable.
+
+## Exercise 4.1 — Three backends
+
+**Task.** Render `tbl_demog_final` through each engine below. Note one thing each does that the others do not.
+
+```{r}
+#| label: ex-4-1
+#| eval: false
+
+tbl_demog_final |> as_gt()
+tbl_demog_final |> as_flex_table()
+tbl_demog_final |> as_hux_table()
+```
+
+## Exercise 4.2 — RTF
+
+**Task.** Export the demographics table to RTF: landscape, a title block carrying the protocol number and page numbering, a footnote block, and font size 9.
+
+```{r}
+#| label: ex-4-2
+#| eval: false
+
+library(huxtable)
+library(pharmaRTF)
+
+ht <- tbl_demog_final |>
+  as_hux_table()
+
+doc <- rtf_doc(ht) |>
+  add_titles(
+    hf_line(____, ____, align = "split", bold = TRUE),
+    hf_line("____")
+  ) |>
+  add_footnotes(
+    hf_line("____")
+  ) |>
+  set_font_size(____) |>
+  set_orientation("____")
+
+write_rtf(doc, file = "____.rtf")
+```
+
+::: {.callout-note collapse="true"}
+## Hint 1
+
+An `hf_line()` with `align = "split"` takes two strings and pushes them to opposite margins — protocol on the left, page number on the right.
+
+Page numbering uses RTF field codes. Look at `?hf_line` for the tokens.
+:::
+
+::: callout-tip
+## Check your work
+
+Open the RTF in Word. Landscape, all columns on one page, page number correct on page 2.
+:::
+
+## Exercise 4.3 — Discussion
+
+What would you add to make these programs acceptable in a validated environment? Consider dependency pinning, version stability across upgrades, independent QC, deterministic sorting, and traceability back to the source ADaM.
+
+------------------------------------------------------------------------
+
+# Reference Card {#sec-reference}
+
+## Statistic placeholders
+
+| Placeholder      | Meaning                  |
+|------------------|--------------------------|
+| `{n}`            | Count                    |
+| `{N}`            | Denominator              |
+| `{p}`            | Percent                  |
+| `{N_nonmiss}`    | Non-missing count        |
+| `{N_miss}`       | Missing count            |
+| `{mean}`, `{sd}` | Mean, standard deviation |
+| `{median}`       | Median                   |
+| `{p25}`, `{p75}` | Quartiles                |
+| `{min}`, `{max}` | Range                    |
+
+## Modification functions
+
+| Goal                           | Function                   |
+|--------------------------------|----------------------------|
+| Rename a column header         | `modify_header()`          |
+| Add a spanning header          | `modify_spanning_header()` |
+| Add a title                    | `modify_caption()`         |
+| Add a footnote below the table | `modify_source_note()`     |
+| Bold variable labels           | `bold_labels()`            |
+| Add a total column             | `add_overall()`            |
+| Show statistic names in rows   | `add_stat_label()`         |
+| Stack tables vertically        | `tbl_stack()`              |
+| Place tables side by side      | `tbl_merge()`              |
+| Split and recombine            | `tbl_strata()`             |
+
+## Selectors
+
+`all_continuous()`, `all_categorical()`, `all_dichotomous()`, `all_stat_cols()`, `all_of()`, `starts_with()`, `everything()`
+
+## Where to look things up
+
+- Function reference and gallery: <https://www.danieldsjoberg.com/gtsummary/>
+- `?tbl_summary` — every argument, examples at the foot of the page
+- `show_header_names(tbl)` — the fastest way to find what `modify_header()` should target
