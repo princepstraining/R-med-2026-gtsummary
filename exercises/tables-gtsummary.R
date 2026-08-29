@@ -32,19 +32,47 @@ df_gtsummary_exercise <- pharmaverseadam::adsl |>
 # BONUS!
 # 5. Add the header "**Active Treatment**" over the 'Xanomeline' treatments using the `modify_spanning_header()` function
 
-tbl <-
-  df_gtsummary_exercise |>
-  mutate(AGEGR1 = factor()) |>
-  tbl_summary(
-    by = ,
-    include = ,
-    type = ,
-    statistic = ,
-    label =  # add a label for AGEGR1
-  ) |>
-  # add a header above the 'Xanomeline' treatments. HINT: Use `show_header_names()` to know the column names
-  modify_spanning_header()
+adsl <- pharmaverseadam::adsl |> filter(SAFFL == "Y")
 
-tbl
+tbl <-
+  adsl |>
+  mutate(AGEGR1 = factor(AGEGR1)) |>
+  tbl_summary(
+    by = TRT01A,
+    include = AGE,
+    type = AGE ~ 'continuous2',
+    statistic = list(AGE ~ c('{N_nonmiss}','{mean} ({sd})','{median}','{min} - {max}')),
+    label =  list(AGE ~ 'Age in years'),
+    digits = list(AGE ~ c(mean=1, sd=2))
+  ) |> gtsummary::modify_table_body(~ .x |> mutate(label=ifelse(label=='No. obs.','n',label))) |> 
+  # add a header above the 'Xanomeline' treatments. HINT: Use `show_header_names()` to know the column names
+  modify_spanning_header(c(stat_2,stat_3) ~ '*active treatments*') |> 
+  modify_footnote_header(footnote = 'all', columns = all_stat_cols())
+  
+
+tbl$table_body
+
+mean <- 1
+
+glue::glue('this is the {mean}')
+
+
+tbl <-
+  adsl |>
+  mutate(AGEGR1 = factor(AGEGR1)) |>
+  tbl_summary(
+    by = TRT01A,
+    include = AGE,
+    type = AGE ~ 'continuous2',
+    statistic = AGE ~ c('{N_nonmiss}','{mean} ({sd})','{median}','{min} - {max}'),
+    label =  ,
+    digits = ,
+      missing = 'no'
+  ) |> gtsummary::modify_table_body(~ .x |> mutate(label=ifelse(label=='No. obs.','n',label))) |> 
+  # add a header above the 'Xanomeline' treatments. HINT: Use `show_header_names()` to know the column names
+  modify_spanning_header(c(stat_2,stat_3) ~ '*active treatments*') |> 
+  modify_footnote_header(footnote = 'all', columns = all_stat_cols())
+
+
 
 # extract the ARD from the table

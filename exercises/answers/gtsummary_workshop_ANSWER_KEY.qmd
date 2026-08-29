@@ -1,7 +1,7 @@
 ---
 title: "Clinical Tables with {gtsummary}"
 subtitle: "Instructor Answer Key — NOT FOR CIRCULATION"
-author: "Clinical Data Programming"
+author: "Jagadish Katam (Princeps Technologies)"
 date: today
 format:
   html:
