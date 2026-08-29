@@ -103,7 +103,7 @@ adsl <- pharmaverseadam::adsl |>
   filter(SAFFL == "Y") |>
   mutate(
     SEX = factor(SEX, levels = c("M", "F"), labels = c("Male", "Female")),
-    AGEGR1 = factor(AGEGR1, levels = c("<65", "65-80", ">80"))
+    AGEGR1 = factor(AGEGR1, levels = c("18-64", ">64"))
   )
 ```
 
@@ -257,10 +257,12 @@ tbl_demog_final
 #| label: key-ae-data
 
 adae <- pharmaverseadam::adae |>
-  filter(SAFFL == "Y", TRTEMFL == "Y")
+  filter(SAFFL == "Y", TRTEMFL == "Y") |>
+  mutate(TRT01A = factor(TRT01A, levels = c("Placebo", "Xanomeline Low Dose", "Xanomeline High Dose")))
 
 adsl_safety <- adsl |>
-  select(USUBJID, TRT01A) 
+  select(USUBJID, TRT01A) |>
+  mutate(TRT01A = factor(TRT01A, levels = c("Placebo", "Xanomeline Low Dose", "Xanomeline High Dose")))
 ```
 
 ## 2.1 — Counting subjects
@@ -444,7 +446,7 @@ adlb <- pharmaverseadam::adlb |>
   filter(SAFFL == "Y", PARAMCD == "ALT") |>
   mutate(
     TRTA = factor(
-      TRTA,
+      TRT01A,
       levels = c("Placebo", "Xanomeline Low Dose", "Xanomeline High Dose")
     )
   )

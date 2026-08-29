@@ -1,1 +1,1 @@
-source("renv/activate.R")
+# renv removed - not used in this project

@@ -4,6 +4,8 @@ project:
   render:
     - "*.qmd"
     - "!slides/**/[0-9]*.qmd"
+    - "!exercises/gtsummary_workshop_participant.qmd"
+    - "!slides/index.qmd"
   
 website:
   page-navigation: true
